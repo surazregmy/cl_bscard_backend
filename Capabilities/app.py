@@ -53,7 +53,6 @@ def save_text(image_id):
 	# format of request body {name: '', phone: '', email: '', website: '', address: ''}
 	print("In the save_text")
 	request_data = json.loads(app.current_request.raw_body)
-	user = iam.create_user(request_data['name'].replace(' ', '-'))
 	print("In the save_text 2")
 	item = {
 		'id': image_id,
@@ -62,25 +61,22 @@ def save_text(image_id):
 		'email': request_data['email'],
 		'website': request_data['website'],
 		'address': request_data['address'],
-		'iam-user': user['iam-user'],
-		'access_id': user['access_id']
+		'access_id': request_data['access_id']
 	}
-	db.insert_item(item)
-	return {'access_id': user['access_id']}
+	return db.insert_item(item)
 
-@app.route('/api/cards', methods=['GET'], cors=True)
-def get_all_cards():
+@app.route('/api/cards/{access_id}', methods=['GET'], cors=True)
+def get_all_cards(access_id):
 	# get all business cards
-	return db.find_item_all()
+	return db.find_items_by_access_id(access_id)
 
 
-@app.route('/api/cards/search-text', methods=['POST'], cors=True)
-def find_text():
+@app.route('/api/cards/{access_id}/search-text', methods=['POST'], cors=True)
+def find_text(access_id):
 	# find an item by name
 	# format of request body {name: ''}
 	request_data = json.loads(app.current_request.raw_body)
-	return db.find_item(request_data['name'])
-
+	return db.find_items_by_access_id_and_name(access_id, request_data['name'])
 
 @app.route('/api/cards/{image_id}/{access_id}/update-field', methods=['PUT'], cors=True)
 def update_text(image_id, access_id):
@@ -112,7 +108,36 @@ def delete_text(image_id, access_id):
 		return item
 	# check if the permission exists
 	if access_id == item['access_id']:
-		iam.delete_user(item['iam-user'])
 		return db.delete_item(image_id)
 	else:
 		return {'error': 'permission denied'}
+	
+
+@app.route('/api/signup', methods=['POST'], cors=True)
+def signup():
+	request_data = json.loads(app.current_request.raw_body)
+	
+	a = db.find_user_by_email_and_password(request_data['email'],request_data['password'])
+	if(a):
+		return {'code':'400','error': 'User already exists'}
+	iamuser = iam.create_user(request_data['email'].replace(' ', '-'))
+	user = {
+		'email': request_data['email'],
+		'password': request_data['password'],
+		'access_id':iamuser['access_id'],
+	}
+	return  db.insert_user(user)
+
+@app.route('/api/login', methods=['POST'], cors=True)
+def login():
+	request_data = json.loads(app.current_request.raw_body)
+	user = {
+		'email': request_data['email'],
+		'password': request_data['password'],
+	}
+	a = db.find_user_by_email_and_password(request_data['email'],request_data['password'])
+	if(a is None):
+		return {'code':'400','error': 'User donot exists'}
+	return  db.find_user_by_email_and_password(request_data['email'],request_data['password'])
+	
+	
